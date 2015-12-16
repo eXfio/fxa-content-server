@@ -111,12 +111,20 @@ define([
         .end()
 
         .findByCssSelector('.account-ready-service')
-        .getVisibleText()
-        .then(function (text) {
-          assert.ok(text.indexOf('Firefox Sync') > -1);
-        })
-
+          .getVisibleText()
+          .then(function (text) {
+            assert.ok(text.indexOf('Firefox Sync') > -1);
+          })
         .end()
+
+        .findByCssSelector('#sync-preferences')
+          .click()
+        .end()
+
+        .then(FunctionalHelpers.testIsBrowserNotified(self, 'fxaccounts:sync_preferences', function (data) {
+          assert.equal(data.entryPoint, 'fxa:signup-complete');
+        }))
+
         .closeCurrentWindow()
 
         // switch to the original window, it should not transition.
