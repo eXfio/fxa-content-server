@@ -5,10 +5,9 @@
 define(function (require, exports, module) {
   'use strict';
 
-  var _ = require('underscore');
   var AuthErrors = require('lib/auth-errors');
   var AvatarMixin = require('views/mixins/avatar-mixin');
-  var canvasToBlob = require('canvasToBlob'); //eslint-disable-line no-unused-vars
+  var Camera = require('lib/camera');
   var Cocktail = require('cocktail');
   var Constants = require('lib/constants');
   var Environment = require('lib/environment');
@@ -19,13 +18,12 @@ define(function (require, exports, module) {
   var ProgressIndicator = require('views/progress_indicator');
   var Template = require('stache!templates/settings/avatar_camera');
 
-  // a blank 1x1 png
-  var pngSrc = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQYV2P4DwABAQEAWk1v8QAAAABJRU5ErkJggg==';
-
-  var EXPORT_LENGTH = Constants.PROFILE_IMAGE_EXPORT_SIZE;
   var DISPLAY_LENGTH = Constants.PROFILE_IMAGE_DISPLAY_SIZE;
-  var JPEG_QUALITY = Constants.PROFILE_IMAGE_JPEG_QUALITY;
-  var MIME_TYPE = Constants.DEFAULT_PROFILE_IMAGE_MIME_TYPE;
+  var EXPORT_LENGTH = Constants.PROFILE_IMAGE_EXPORT_SIZE;
+
+  // a blank 1x1 png
+  var PNG_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQYV2P4DwABAQEAWk1v8QAAAABJRU5ErkJggg==';
+
 
   var View = FormView.extend({
     template: Template,
@@ -44,54 +42,6 @@ define(function (require, exports, module) {
       self.exportLength = options.exportLength || EXPORT_LENGTH;
       self.displayLength = options.displayLength || DISPLAY_LENGTH;
       self.streaming = false;
-
-
-      if (self.broker.isAutomatedBrowser()) {
-        var ARTIFICIAL_DELAY = 3000; // 3 seconds
-        // mock some things out for automated browser testing
-        self.streaming = true;
-        self._getMedia = function () {
-          self.enableSubmitIfValid();
-        };
-        self.stream = {
-          stop: function () {}
-        };
-
-        self.window.setTimeout(_.bind(self.onLoadedMetaData, self), ARTIFICIAL_DELAY);
-      }
-    },
-
-    _getMedia: function () {
-      var self = this;
-      var nav = self.window.navigator;
-
-      var getUserMedia = nav.getUserMedia ||
-                             nav.webkitGetUserMedia ||
-                             nav.mozGetUserMedia ||
-                             nav.msGetUserMedia;
-
-      var getMedia = _.bind(getUserMedia, nav);
-
-      getMedia(
-        {
-          audio: false,
-          video: true
-        },
-        function (stream) {
-          self.stream = stream;
-          if (nav.mozGetUserMedia) {
-            self.video.mozSrcObject = stream;
-          } else {
-            var vendorURL = self.window.URL || self.window.webkitURL;
-            self.video.src = vendorURL.createObjectURL(stream);
-          }
-          self.video.play();
-        },
-        function () {
-          self._avatarProgressIndicator.done();
-          self.displayError(AuthErrors.toError('NO_CAMERA'));
-        }
-      );
     },
 
     beforeRender: function () {
@@ -106,52 +56,85 @@ define(function (require, exports, module) {
     },
 
     afterRender: function () {
-      this._getMedia();
+      var self = this;
+      self._avatarProgressIndicator = new ProgressIndicator();
+      self._avatarProgressIndicator.start(self.$('.progress-container'));
 
-      this._avatarProgressIndicator = new ProgressIndicator();
-      this.wrapper = this.$('#avatar-camera-wrapper');
-      this.video = this.$('#video')[0];
+      self._enablePreview()
+        .then(function () {
+          self.streaming = true;
 
-      this._avatarProgressIndicator.start(this.$('.progress-container'));
+          self.$('.progress-container').addClass('hidden');
+          self.$('#video').removeClass('hidden');
 
-      this.canvas = this.$('#canvas')[0];
+          self._centerPreview();
 
-      this.video.addEventListener('loadedmetadata', _.bind(this.onLoadedMetaData, this), false);
+          self.enableSubmitIfValid();
+          self._avatarProgressIndicator.done();
+        })
+        .fail(function (err) {
+          console.error('uh oh', String(err));
+          self.displayError(AuthErrors.toError('NO_CAMERA'));
+        });
     },
 
-    onLoadedMetaData: function () {
-      if (! this.streaming) {
-        var vw = this.video.videoWidth;
-        var vh = this.video.videoHeight;
+    _enablePreview: function () {
+      var self = this;
+      return p().then(function () {
 
-        // Log metrics if these are 0; something with the browser/machine isn't right
-        if (vh === 0 || vw === 0) {
-          this.logError(AuthErrors.toError('INVALID_CAMERA_DIMENSIONS'));
+        var videoEl = self.$('#video')[0];
+        var previewEl = videoEl;
+        var snapshotSource = videoEl;
+
+        if (self.broker.isAutomatedBrowser()) {
+          snapshotSource = new Image();
+          snapshotSource.src = PNG_SRC;
         }
 
-        if (vh > vw) {
-          // The camera is in portrait mode
-          this.width = this.displayLength;
-          this.height = vh / (vw / this.width);
+        self._camera = new Camera({
+          previewEl: previewEl,
+          snapshotSource: snapshotSource
+        });
+
+        if (self.broker.isAutomatedBrowser()) {
+          // no actual camera in when automated testing, continue anyways.
+          return p(null);
         } else {
-          // The camera is in landscape mode
-          this.height = this.displayLength;
-          this.width = vw / (vh / this.height);
+          return self._camera.enablePreview();
         }
+      });
+    },
 
-        var pos = this.centeredPos(this.width, this.height, this.displayLength);
-        this.wrapper.css({ marginLeft: pos.left, marginTop: pos.top });
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        this._avatarProgressIndicator.done();
-        this.$('.progress-container').addClass('hidden');
-        this.$('#video').height(this.height).removeClass('hidden');
-        this.streaming = true;
 
-        this.enableSubmitIfValid();
-      } else {
-        this._avatarProgressIndicator.done();
+    _centerPreview: function () {
+      if (this.broker.isAutomatedBrowser()) {
+        // automated browser, no stream to center
+        return;
       }
+
+      var $video = this.$('#video');
+      var videoEl = $video[0];
+      var vw = videoEl.videoWidth;
+      var vh = videoEl.videoHeight;
+
+      var width;
+      var height;
+
+      if (vh > vw) {
+        // The camera is in portrait mode
+        width = this.displayLength;
+        height = vh / (vw / width);
+      } else {
+        // The camera is in landscape mode
+        height = this.displayLength;
+        width = vw / (vh / height);
+      }
+
+      $video.height(height);
+
+      var pos = this._camera.centeredPos(width, height, this.displayLength);
+      var $wrapper = this.$('#avatar-camera-wrapper');
+      $wrapper.css({ marginLeft: pos.left, marginTop: pos.top });
     },
 
     isValidEnd: function () {
@@ -168,8 +151,8 @@ define(function (require, exports, module) {
           return account.uploadAvatar(data);
         })
         .then(function (result) {
-          self.stream.stop();
-          delete self.stream;
+          self._camera.disablePreview();
+          self.streaming = false;
 
           self.updateProfileImage(new ProfileImage(result), account);
           self.navigate('settings');
@@ -178,54 +161,14 @@ define(function (require, exports, module) {
     },
 
     beforeDestroy: function () {
-      if (this.stream) {
-        this.stream.stop();
-        delete this.stream;
+      if (this._camera) {
+        this._camera.disablePreview();
       }
+      this.streaming = false;
     },
 
-    takePicture: function takepicture() {
-      var defer = p.defer();
-
-      var w = this.video.videoWidth;
-      var h = this.video.videoHeight;
-      var minValue = Math.min(h, w);
-
-      this.canvas.width = this.exportLength;
-      this.canvas.height = this.exportLength;
-
-      var pos = this.centeredPos(w, h, minValue);
-
-      var dataSrc = this.video;
-      if (this.broker.isAutomatedBrowser()) {
-        dataSrc = new Image();
-        dataSrc.src = pngSrc;
-      }
-
-      this.canvas.getContext('2d').drawImage(
-        dataSrc,
-        Math.abs(pos.left),
-        Math.abs(pos.top),
-        minValue,
-        minValue,
-        0, 0, this.exportLength, this.exportLength
-      );
-
-      this.canvas.toBlob(function (data) {
-        defer.resolve(data);
-      }, MIME_TYPE, JPEG_QUALITY);
-
-      return defer.promise;
-    },
-
-    // Calculates the position offset needed to center a rectangular image
-    // in a square container
-    centeredPos: function (w, h, max) {
-      if (w > h) {
-        return { left: (max - w) / 2, top: 0 };
-      } else {
-        return { left: 0, top: (max - h) / 2 };
-      }
+    takePicture: function () {
+      return this._camera.getSnapshot(this.exportLength, this.exportLength);
     }
   });
 
