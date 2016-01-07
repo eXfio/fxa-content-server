@@ -93,11 +93,12 @@ var conf = convict({
     env: 'DISABLE_ROUTE_LOGGING'
   },
   env: {
-    default: 'production',
+    default: 'development',
     doc: 'What environment are we running in?  Note: all hosted environments are \'production\'.',
     env: 'NODE_ENV',
     format: [
       'production',
+      'stage',
       'development'
     ]
   },

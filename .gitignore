@@ -56,6 +56,9 @@ app/503.html
 
 ### Local configuration ###
 server/config/local.json
+server/config/development.json
+server/config/stage.json
+server/config/production.json
 
 ### Localization JSON ###
 app/i18n

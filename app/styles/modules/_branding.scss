@@ -1,6 +1,6 @@
 #fox-logo {
 
-  @include hidpi-background-image('firefox', 80px 85px);
+  @include hidpi-background-image('cucumbersync', 80px 85px);
   background-position: center top;
   background-repeat: no-repeat;
   opacity: 0;
@@ -43,6 +43,7 @@
 #about-mozilla {
 
   @include respond-to('big') {
+    display: none;
     @include hidpi-background-image('mozilla', 69px 19px);
     cursor: pointer;
     height: 19px;

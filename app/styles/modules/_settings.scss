@@ -36,7 +36,7 @@ body.settings #main-content.card {
   }
 
   #fxa-manage-account {
-    @include hidpi-background-image('firefox', 80px 85px);
+    @include hidpi-background-image('cucumbersync', 80px 85px);
     background-repeat: no-repeat;
     float: left;
     margin: 0;
