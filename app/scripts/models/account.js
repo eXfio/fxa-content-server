@@ -15,7 +15,7 @@ define(function (require, exports, module) {
   var MarketingEmailPrefs = require('models/marketing-email-prefs');
   var OAuthToken = require('models/oauth-token');
   var p = require('lib/promise');
-  var ProfileClient = require('lib/profile-client');
+  var ProfileClient = require('lib/profile-client-mock');
   var ProfileImage = require('models/profile-image');
 
   var NEWSLETTER_ID = Constants.MARKETING_EMAIL_NEWSLETTER_ID;
@@ -131,7 +131,13 @@ define(function (require, exports, module) {
           if (! self.get('verified')) {
             throw AuthErrors.toError('UNVERIFIED_ACCOUNT');
           } else if (self._needsAccessToken()) {
-            return self._fetchProfileOAuthToken();
+            //return self._fetchProfileOAuthToken();
+            self._profileClient.setMockAttributes({
+              email: self.get('email'),
+              uid:   self.get('uid')
+            });
+            self.set('accessToken', 'foo');
+            return p();
           }
         })
         .then(function () {

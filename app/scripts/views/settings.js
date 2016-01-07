@@ -29,17 +29,17 @@ define(function (require, exports, module) {
   var Template = require('stache!templates/settings');
 
   var PANEL_VIEWS = [
-    AvatarView,
-    DisplayNameView,
-    DevicesView,
-    CommunicationPreferencesView,
+    //AvatarView,
+    //DisplayNameView,
+    //DevicesView,
+    //CommunicationPreferencesView,
     ChangePasswordView,
     DeleteAccountView,
-    AvatarChangeView,
-    AvatarCropView,
-    AvatarCameraView,
-    GravatarView,
-    GravatarPermissionsView
+    //AvatarChangeView,
+    //AvatarCropView,
+    //AvatarCameraView,
+    //GravatarView,
+    //GravatarPermissionsView
   ];
 
   var View = BaseView.extend({

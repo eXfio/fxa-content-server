@@ -50,7 +50,7 @@ define(function (require, exports, module) {
   var OAuthRelier = require('models/reliers/oauth');
   var OriginCheck = require('lib/origin-check');
   var p = require('lib/promise');
-  var ProfileClient = require('lib/profile-client');
+  var ProfileClient = require('lib/profile-client-mock');
   var RedirectAuthenticationBroker = require('models/auth_brokers/redirect');
   var RefreshObserver = require('models/refresh-observer');
   var Relier = require('models/reliers/relier');
