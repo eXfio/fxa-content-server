@@ -7,7 +7,9 @@ var convict = require('convict');
 var fs = require('fs');
 var path = require('path');
 
-var conf = module.exports = convict({
+var DEV_CONFIG_PATH = path.join(__dirname, '..', 'config', 'local.json');
+
+var conf = convict({
   allowed_parent_origins: {
     default: [],
     doc: 'Origins that are allowed to embed the FxA within an IFRAME',
@@ -506,17 +508,19 @@ if (conf.get('env') === 'development') {
   conf.set('csp.enabled', true);
 }
 
-var DEV_CONFIG_PATH = path.join(__dirname, '..', 'config', 'local.json');
-var files;
-
-// handle configuration files.  you can specify a CSV list of configuration
+// Handle configuration files. You can specify a CSV list of configuration
 // files to process, which will be overlayed in order, in the CONFIG_FILES
-// environment variable
-if (process.env.CONFIG_FILES && process.env.CONFIG_FILES.trim() !== '') {
-  files = process.env.CONFIG_FILES.split(',');
-} else if (fs.existsSync(DEV_CONFIG_PATH)) {
-  files = [ DEV_CONFIG_PATH ];
+// environment variable. By default, the ./config/<env>.json file is loaded.
+// In the dev environment if the config file is missing use DEV_CONFIG_PATH
+
+var envConfig = path.join(__dirname, '..', 'config', conf.get('env') + '.json');
+if ( !fs.existsSync(envConfig) && conf.get('env') === 'development' && fs.existsSync(DEV_CONFIG_PATH) ) {
+  envConfig = [ DEV_CONFIG_PATH ];
 }
+
+var files = (envConfig + ',' + process.env.CONFIG_FILES).split(',').filter(fs.existsSync)
+
+console.log('Using configuration files', files);
 
 if (files) {
   conf.loadFile(files);
@@ -581,3 +585,4 @@ var options = {
 // validate the configuration based on the above specification
 conf.validate(options);
 
+module.exports = conf;

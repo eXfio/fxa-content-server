@@ -7,23 +7,23 @@ module.exports = function (grunt) {
 
   var CONFIG_ROOT = path.join(__dirname, '..', 'server', 'config');
   var TARGET_TO_CONFIG = {
-    app: path.join(CONFIG_ROOT, 'local.json'),
-    dist: path.join(CONFIG_ROOT, 'production.json'),
-    test: path.join(CONFIG_ROOT, 'local.json')
   };
 
   grunt.registerTask('selectconfig', 'Select configuration files for the running environment.', function (target) {
-    if (! target) {
-      target = 'app';
-    }
 
     // Config files specified in CONFIG_FILES env variable override everything
-    // else.
-    if (! process.env.CONFIG_FILES) {
+    // else. awsbox instances use this variable to specify ephemeral
+    // configuration like public_url.
+    // NOTE: By default, the ./config/<env>.json file is loaded first, i.e. 
+    // development.json and production.json for the development and production env 
+    // resepectively. Finally for the development env if the config file is missing
+    // it defaults to local.json. See server/lib/configuration.js
+    if ( !process.env.CONFIG_FILES && target in TARGET_TO_CONFIG ) {
       process.env.CONFIG_FILES = TARGET_TO_CONFIG[target];
     }
 
-    console.log('Using configuration files', process.env.CONFIG_FILES);
+    //  Invalidate cache to ensure that config module is reloaded taking CONFIG_FILES into account
+    delete require.cache[require.resolve('../server/lib/configuration')];
 
     // `server` is a shortcut to the server configuration
     var serverConfig = require('../server/lib/configuration').getProperties();
